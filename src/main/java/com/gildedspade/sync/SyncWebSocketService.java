@@ -1,5 +1,6 @@
 package com.gildedspade.sync;
 
+import com.google.gson.Gson;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.callback.ClientThread;
 
@@ -17,15 +18,17 @@ class SyncWebSocketService
 	private static final int WEBSOCKET_STARTUP_TIMEOUT_MILLIS = 2000;
 
 	private final ClientThread clientThread;
+	private final Gson gson;
 
 	private SyncWebSocketServer webSocketServer;
 	private ScheduledExecutorService healthCheckExecutor;
 	private GildedSpadeSyncPlugin plugin;
 
 	@Inject
-	SyncWebSocketService(ClientThread clientThread)
+	SyncWebSocketService(ClientThread clientThread, Gson gson)
 	{
 		this.clientThread = clientThread;
+		this.gson = gson;
 	}
 
 	synchronized void start(GildedSpadeSyncPlugin plugin) throws InterruptedException
@@ -93,7 +96,7 @@ class SyncWebSocketService
 	{
 		for (int port = WEBSOCKET_BASE_PORT; port < WEBSOCKET_BASE_PORT + WEBSOCKET_PORT_COUNT; port++)
 		{
-			SyncWebSocketServer candidate = new SyncWebSocketServer(port, plugin, clientThread);
+			SyncWebSocketServer candidate = new SyncWebSocketServer(port, plugin, clientThread, gson);
 			try
 			{
 				candidate.start();

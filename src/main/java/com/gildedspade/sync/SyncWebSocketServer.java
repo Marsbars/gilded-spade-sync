@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -27,12 +28,12 @@ public class SyncWebSocketServer extends WebSocketServer
 	private final AtomicBoolean serverActive = new AtomicBoolean(false);
 	private final AtomicBoolean startupFailed = new AtomicBoolean(false);
 
-	public SyncWebSocketServer(int port, GildedSpadeSyncPlugin plugin, ClientThread clientThread)
+	public SyncWebSocketServer(int port, GildedSpadeSyncPlugin plugin, ClientThread clientThread, Gson gson)
 	{
 		super(new InetSocketAddress("localhost", port));
 		this.plugin = plugin;
 		this.clientThread = clientThread;
-		this.gson = new Gson();
+		this.gson = Objects.requireNonNull(gson);
 		this.port = port;
 		setReuseAddr(true);
 	}
