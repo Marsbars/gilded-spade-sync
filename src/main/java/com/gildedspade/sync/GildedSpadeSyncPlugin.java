@@ -319,9 +319,19 @@ public class GildedSpadeSyncPlugin extends Plugin
 		bankSortAssistService.startBankSortAssist(items);
 	}
 
+	public void startBankSortAssist(List<Map<String, Object>> items, Runnable afterAction)
+	{
+		bankSortAssistService.startBankSortAssist(items, afterAction);
+	}
+
 	public void stopBankSortAssist()
 	{
 		bankSortAssistService.stopBankSortAssist();
+	}
+
+	public void stopBankSortAssist(Runnable afterAction)
+	{
+		bankSortAssistService.stopBankSortAssist(afterAction);
 	}
 
 	public void skipBankSortAssistItem()
@@ -329,9 +339,19 @@ public class GildedSpadeSyncPlugin extends Plugin
 		bankSortAssistService.skipBankSortAssistItem();
 	}
 
+	public void skipBankSortAssistItem(Runnable afterAction)
+	{
+		bankSortAssistService.skipBankSortAssistItem(afterAction);
+	}
+
 	public void confirmBankSortAssistItem()
 	{
 		bankSortAssistService.confirmBankSortAssistItem();
+	}
+
+	public void confirmBankSortAssistItem(Runnable afterAction)
+	{
+		bankSortAssistService.confirmBankSortAssistItem(afterAction);
 	}
 
 	public Map<String, Object> getBankSortAssistStatus()

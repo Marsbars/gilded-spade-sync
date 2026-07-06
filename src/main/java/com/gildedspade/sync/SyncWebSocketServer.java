@@ -14,6 +14,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 @Slf4j
@@ -210,12 +211,15 @@ public class SyncWebSocketServer extends WebSocketServer
 		});
 	}
 
-	private void handleSortAction(WebSocket conn, int sequenceId, String logName, Runnable action)
+	private void handleSortAction(WebSocket conn, int sequenceId, String logName, Consumer<Runnable> action)
 	{
 		try
 		{
-			action.run();
-			sendBankSortAssistStatus(conn, sequenceId);
+			action.accept(() ->
+			{
+				sendBankSortAssistStatus(conn, sequenceId);
+				log.debug("Handled {}", logName);
+			});
 		}
 		catch (Exception e)
 		{
@@ -272,9 +276,12 @@ public class SyncWebSocketServer extends WebSocketServer
 				}
 			}
 
-			plugin.startBankSortAssist(items);
-			sendBankSortAssistStatus(conn, sequenceId);
-			log.info("Started bank sort assist with {} items", items.size());
+			int itemCount = items.size();
+			plugin.startBankSortAssist(items, () ->
+			{
+				sendBankSortAssistStatus(conn, sequenceId);
+				log.info("Started bank sort assist with {} items", itemCount);
+			});
 		}
 		catch (Exception e)
 		{

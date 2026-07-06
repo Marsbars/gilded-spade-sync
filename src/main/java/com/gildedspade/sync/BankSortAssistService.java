@@ -39,73 +39,137 @@ class BankSortAssistService
 
 	void startBankSortAssist(List<Map<String, Object>> items)
 	{
+		startBankSortAssist(items, null);
+	}
+
+	void startBankSortAssist(List<Map<String, Object>> items, Runnable afterAction)
+	{
 		clientThread.invoke(() ->
 		{
-			List<BankSortAssistItem> assistItems = new ArrayList<>();
-			for (Map<String, Object> item : items)
+			try
 			{
-				int id = getIntValue(item.get("id"), -1);
-				if (id <= 0)
+				List<BankSortAssistItem> assistItems = new ArrayList<>();
+				for (Map<String, Object> item : items)
 				{
-					continue;
+					int id = getIntValue(item.get("id"), -1);
+					if (id <= 0)
+					{
+						continue;
+					}
+
+					String name = getStringValue(item.get("name"), "Item " + id);
+					String targetTabId = getStringValue(item.get("targetTabId"), "main");
+					String targetTabName = getStringValue(item.get("targetTabName"), "Main");
+					int targetPosition = getIntValue(item.get("targetPosition"), assistItems.size());
+					String requiredMoveMode = getMoveModeValue(item.get("requiredMoveMode"));
+					String actionType = getSortActionType(item.get("actionType"));
+					int anchorItemId = getIntValue(item.get("anchorItemId"), -1);
+					String anchorItemName = getStringValue(item.get("anchorItemName"), "");
+
+					assistItems.add(new BankSortAssistItem(id, name, targetTabId, targetTabName, targetPosition,
+						requiredMoveMode, actionType, anchorItemId, anchorItemName));
 				}
 
-				String name = getStringValue(item.get("name"), "Item " + id);
-				String targetTabId = getStringValue(item.get("targetTabId"), "main");
-				String targetTabName = getStringValue(item.get("targetTabName"), "Main");
-				int targetPosition = getIntValue(item.get("targetPosition"), assistItems.size());
-				String requiredMoveMode = getMoveModeValue(item.get("requiredMoveMode"));
-				String actionType = getSortActionType(item.get("actionType"));
-				int anchorItemId = getIntValue(item.get("anchorItemId"), -1);
-				String anchorItemName = getStringValue(item.get("anchorItemName"), "");
-
-				assistItems.add(new BankSortAssistItem(id, name, targetTabId, targetTabName, targetPosition,
-					requiredMoveMode, actionType, anchorItemId, anchorItemName));
+				bankSortAssistSession = new BankSortAssistSession(assistItems);
+				applyCurrentBankSortAssistStep();
+				broadcastBankSortAssistStatus();
 			}
-
-			bankSortAssistSession = new BankSortAssistSession(assistItems);
-			applyCurrentBankSortAssistStep();
-			broadcastBankSortAssistStatus();
+			finally
+			{
+				runAfterAction(afterAction);
+			}
 		});
 	}
 
 	void stopBankSortAssist()
 	{
+		stopBankSortAssist(null);
+	}
+
+	void stopBankSortAssist(Runnable afterAction)
+	{
 		clientThread.invoke(() ->
 		{
-			if (bankSortAssistSession != null)
+			try
 			{
-				bankSortAssistSession.active = false;
+				if (bankSortAssistSession != null)
+				{
+					bankSortAssistSession.active = false;
+				}
+				currentFilterIds = Collections.emptyList();
+				bankFilterSetter.accept(currentFilterIds);
+				broadcastBankSortAssistStatus();
 			}
-			currentFilterIds = Collections.emptyList();
-			bankFilterSetter.accept(currentFilterIds);
-			broadcastBankSortAssistStatus();
+			finally
+			{
+				runAfterAction(afterAction);
+			}
 		});
 	}
 
 	void skipBankSortAssistItem()
 	{
+		skipBankSortAssistItem(null);
+	}
+
+	void skipBankSortAssistItem(Runnable afterAction)
+	{
 		clientThread.invoke(() ->
 		{
-			if (bankSortAssistSession == null || !bankSortAssistSession.active)
+			try
 			{
-				broadcastBankSortAssistStatus();
-				return;
-			}
+				if (bankSortAssistSession == null || !bankSortAssistSession.active)
+				{
+					broadcastBankSortAssistStatus();
+					return;
+				}
 
-			bankSortAssistSession.skipCurrent();
-			applyCurrentBankSortAssistStep();
-			broadcastBankSortAssistStatus();
+				bankSortAssistSession.skipCurrent();
+				applyCurrentBankSortAssistStep();
+				broadcastBankSortAssistStatus();
+			}
+			finally
+			{
+				runAfterAction(afterAction);
+			}
 		});
 	}
 
 	void confirmBankSortAssistItem()
 	{
+		confirmBankSortAssistItem(null);
+	}
+
+	void confirmBankSortAssistItem(Runnable afterAction)
+	{
 		clientThread.invoke(() ->
 		{
-			completeCurrentBankSortAssistStep();
-			broadcastBankSortAssistStatus();
+			try
+			{
+				completeCurrentBankSortAssistStep();
+				broadcastBankSortAssistStatus();
+			}
+			finally
+			{
+				runAfterAction(afterAction);
+			}
 		});
+	}
+
+	private void runAfterAction(Runnable afterAction)
+	{
+		if (afterAction == null)
+		{
+			return;
+		}
+		try
+		{
+			afterAction.run();
+		}
+		catch (Exception e)
+		{
+			log.error("Error running bank sort assist completion callback", e);
+		}
 	}
 
 	Map<String, Object> getBankSortAssistStatus()
