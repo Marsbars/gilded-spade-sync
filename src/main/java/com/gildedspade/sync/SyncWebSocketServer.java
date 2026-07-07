@@ -32,7 +32,6 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -40,23 +39,29 @@ import java.util.function.Supplier;
 @Slf4j
 public class SyncWebSocketServer
 {
+	private static final Set<String> ALLOWED_ORIGINS = Set.of(
+		"https://gildedspade.com",
+		"http://localhost:3000"
+	);
+
 	private final GildedSpadeSyncPlugin plugin;
 	private final ClientThread clientThread;
 	private final Gson gson;
+	private final ExecutorService executor;
 	private final int port;
 	private final AtomicBoolean serverActive = new AtomicBoolean(false);
 	private final AtomicBoolean startupFailed = new AtomicBoolean(false);
 	private final Set<Connection> connections = ConcurrentHashMap.newKeySet();
 
 	private ServerSocket serverSocket;
-	private ExecutorService acceptExecutor;
-	private ExecutorService connectionExecutor;
 
-	public SyncWebSocketServer(int port, GildedSpadeSyncPlugin plugin, ClientThread clientThread, Gson gson)
+	public SyncWebSocketServer(int port, GildedSpadeSyncPlugin plugin, ClientThread clientThread, Gson gson,
+							   ExecutorService executor)
 	{
 		this.plugin = plugin;
 		this.clientThread = clientThread;
 		this.gson = Objects.requireNonNull(gson);
+		this.executor = Objects.requireNonNull(executor);
 		this.port = port;
 	}
 
@@ -90,9 +95,7 @@ public class SyncWebSocketServer
 		startupFailed.set(false);
 		serverActive.set(true);
 
-		acceptExecutor = Executors.newSingleThreadExecutor();
-		connectionExecutor = Executors.newCachedThreadPool();
-		acceptExecutor.execute(this::acceptLoop);
+		executor.execute(this::acceptLoop);
 
 		log.info("WebSocket server started successfully");
 	}
@@ -107,17 +110,6 @@ public class SyncWebSocketServer
 			connection.closeQuietly();
 		}
 		connections.clear();
-
-		if (acceptExecutor != null)
-		{
-			acceptExecutor.shutdown();
-			acceptExecutor = null;
-		}
-		if (connectionExecutor != null)
-		{
-			connectionExecutor.shutdown();
-			connectionExecutor = null;
-		}
 	}
 
 	private void acceptLoop()
@@ -136,7 +128,7 @@ public class SyncWebSocketServer
 				Connection connection = new Connection(socket);
 				connections.add(connection);
 
-				connectionExecutor.execute(() -> handleConnection(connection));
+				executor.execute(() -> handleConnection(connection));
 			}
 			catch (SocketException e)
 			{
@@ -556,10 +548,13 @@ public class SyncWebSocketServer
 			}
 
 			String key = headerValue(headers, "Sec-WebSocket-Key");
+			String origin = headerValue(headers, "Origin");
 			if (!headerContains(headers, "Upgrade", "websocket")
 				|| !headerContains(headers, "Connection", "Upgrade")
 				|| key == null
-				|| !"13".equals(headerValue(headers, "Sec-WebSocket-Version")))
+				|| !"13".equals(headerValue(headers, "Sec-WebSocket-Version"))
+				|| origin == null
+				|| !ALLOWED_ORIGINS.contains(origin))
 			{
 				throw new IOException("Invalid WebSocket upgrade headers");
 			}

@@ -6,8 +6,8 @@ import net.runelite.client.callback.ClientThread;
 
 import javax.inject.Inject;
 import java.util.Map;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
@@ -18,16 +18,18 @@ class SyncWebSocketService
 
 	private final ClientThread clientThread;
 	private final Gson gson;
+	private final ScheduledExecutorService executor;
 
 	private SyncWebSocketServer webSocketServer;
-	private ScheduledExecutorService healthCheckExecutor;
+	private ScheduledFuture<?> healthCheckFuture;
 	private GildedSpadeSyncPlugin plugin;
 
 	@Inject
-	SyncWebSocketService(ClientThread clientThread, Gson gson)
+	SyncWebSocketService(ClientThread clientThread, Gson gson, ScheduledExecutorService executor)
 	{
 		this.clientThread = clientThread;
 		this.gson = gson;
+		this.executor = executor;
 	}
 
 	synchronized void start(GildedSpadeSyncPlugin plugin)
@@ -36,16 +38,15 @@ class SyncWebSocketService
 		webSocketServer = startWebSocketServer(plugin);
 		log.info("WebSocket server started on port {}", webSocketServer.getPort());
 
-		healthCheckExecutor = Executors.newSingleThreadScheduledExecutor();
-		healthCheckExecutor.scheduleAtFixedRate(this::ensureServerActive, 30, 30, TimeUnit.SECONDS);
+		healthCheckFuture = executor.scheduleAtFixedRate(this::ensureServerActive, 30, 30, TimeUnit.SECONDS);
 	}
 
 	synchronized void stop()
 	{
-		if (healthCheckExecutor != null)
+		if (healthCheckFuture != null)
 		{
-			healthCheckExecutor.shutdown();
-			healthCheckExecutor = null;
+			healthCheckFuture.cancel(false);
+			healthCheckFuture = null;
 		}
 
 		stopCurrentServer();
@@ -95,7 +96,7 @@ class SyncWebSocketService
 	{
 		for (int port = WEBSOCKET_BASE_PORT; port < WEBSOCKET_BASE_PORT + WEBSOCKET_PORT_COUNT; port++)
 		{
-			SyncWebSocketServer candidate = new SyncWebSocketServer(port, plugin, clientThread, gson);
+			SyncWebSocketServer candidate = new SyncWebSocketServer(port, plugin, clientThread, gson, executor);
 			try
 			{
 				candidate.start();
