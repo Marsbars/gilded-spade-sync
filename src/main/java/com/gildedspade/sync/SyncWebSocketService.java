@@ -15,7 +15,6 @@ class SyncWebSocketService
 {
 	private static final int WEBSOCKET_BASE_PORT = 37780;
 	private static final int WEBSOCKET_PORT_COUNT = 10;
-	private static final int WEBSOCKET_STARTUP_TIMEOUT_MILLIS = 2000;
 
 	private final ClientThread clientThread;
 	private final Gson gson;
@@ -31,7 +30,7 @@ class SyncWebSocketService
 		this.gson = gson;
 	}
 
-	synchronized void start(GildedSpadeSyncPlugin plugin) throws InterruptedException
+	synchronized void start(GildedSpadeSyncPlugin plugin)
 	{
 		this.plugin = plugin;
 		webSocketServer = startWebSocketServer(plugin);
@@ -92,7 +91,7 @@ class SyncWebSocketService
 		}
 	}
 
-	private SyncWebSocketServer startWebSocketServer(GildedSpadeSyncPlugin plugin) throws InterruptedException
+	private SyncWebSocketServer startWebSocketServer(GildedSpadeSyncPlugin plugin)
 	{
 		for (int port = WEBSOCKET_BASE_PORT; port < WEBSOCKET_BASE_PORT + WEBSOCKET_PORT_COUNT; port++)
 		{
@@ -100,17 +99,7 @@ class SyncWebSocketService
 			try
 			{
 				candidate.start();
-				if (waitForServerStart(candidate))
-				{
-					return candidate;
-				}
-
-				stopServer(candidate);
-			}
-			catch (InterruptedException e)
-			{
-				stopServer(candidate);
-				throw e;
+				return candidate;
 			}
 			catch (Exception e)
 			{
@@ -121,26 +110,6 @@ class SyncWebSocketService
 
 		throw new RuntimeException("No available port found in range "
 			+ WEBSOCKET_BASE_PORT + "-" + (WEBSOCKET_BASE_PORT + WEBSOCKET_PORT_COUNT - 1));
-	}
-
-	private boolean waitForServerStart(SyncWebSocketServer server) throws InterruptedException
-	{
-		long deadline = System.currentTimeMillis() + WEBSOCKET_STARTUP_TIMEOUT_MILLIS;
-		while (System.currentTimeMillis() < deadline)
-		{
-			if (server.isActive())
-			{
-				return true;
-			}
-			if (server.hasStartupFailed())
-			{
-				return false;
-			}
-
-			Thread.sleep(25);
-		}
-
-		return false;
 	}
 
 	private void stopCurrentServer()
@@ -154,14 +123,6 @@ class SyncWebSocketService
 
 	private void stopServer(SyncWebSocketServer server)
 	{
-		try
-		{
-			server.stop(1000);
-		}
-		catch (InterruptedException e)
-		{
-			Thread.currentThread().interrupt();
-			log.error("Error stopping WebSocket server", e);
-		}
+		server.stop();
 	}
 }

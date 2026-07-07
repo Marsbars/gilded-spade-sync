@@ -31,6 +31,8 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -47,7 +49,8 @@ public class SyncWebSocketServer
 	private final Set<Connection> connections = ConcurrentHashMap.newKeySet();
 
 	private ServerSocket serverSocket;
-	private Thread acceptThread;
+	private ExecutorService acceptExecutor;
+	private ExecutorService connectionExecutor;
 
 	public SyncWebSocketServer(int port, GildedSpadeSyncPlugin plugin, ClientThread clientThread, Gson gson)
 	{
@@ -87,14 +90,14 @@ public class SyncWebSocketServer
 		startupFailed.set(false);
 		serverActive.set(true);
 
-		acceptThread = new Thread(this::acceptLoop, "gilded-spade-sync-ws-" + port);
-		acceptThread.setDaemon(true);
-		acceptThread.start();
+		acceptExecutor = Executors.newSingleThreadExecutor();
+		connectionExecutor = Executors.newCachedThreadPool();
+		acceptExecutor.execute(this::acceptLoop);
 
 		log.info("WebSocket server started successfully");
 	}
 
-	public void stop(int timeoutMillis) throws InterruptedException
+	public void stop()
 	{
 		serverActive.set(false);
 		closeQuietly(serverSocket);
@@ -105,10 +108,15 @@ public class SyncWebSocketServer
 		}
 		connections.clear();
 
-		Thread thread = acceptThread;
-		if (thread != null)
+		if (acceptExecutor != null)
 		{
-			thread.join(timeoutMillis);
+			acceptExecutor.shutdown();
+			acceptExecutor = null;
+		}
+		if (connectionExecutor != null)
+		{
+			connectionExecutor.shutdown();
+			connectionExecutor = null;
 		}
 	}
 
@@ -128,10 +136,7 @@ public class SyncWebSocketServer
 				Connection connection = new Connection(socket);
 				connections.add(connection);
 
-				Thread connectionThread = new Thread(() -> handleConnection(connection),
-					"gilded-spade-sync-ws-client-" + port);
-				connectionThread.setDaemon(true);
-				connectionThread.start();
+				connectionExecutor.execute(() -> handleConnection(connection));
 			}
 			catch (SocketException e)
 			{
