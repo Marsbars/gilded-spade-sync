@@ -6,6 +6,7 @@ import net.runelite.client.callback.ClientThread;
 
 import javax.inject.Inject;
 import java.util.Map;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -18,38 +19,42 @@ class SyncWebSocketService
 
 	private final ClientThread clientThread;
 	private final Gson gson;
-	private final ScheduledExecutorService executor;
 
+	private ScheduledExecutorService executor;
 	private SyncWebSocketServer webSocketServer;
 	private ScheduledFuture<?> healthCheckFuture;
 	private GildedSpadeSyncPlugin plugin;
 
 	@Inject
-	SyncWebSocketService(ClientThread clientThread, Gson gson, ScheduledExecutorService executor)
+	SyncWebSocketService(ClientThread clientThread, Gson gson)
 	{
 		this.clientThread = clientThread;
 		this.gson = gson;
-		this.executor = executor;
 	}
 
 	synchronized void start(GildedSpadeSyncPlugin plugin)
 	{
 		this.plugin = plugin;
-		webSocketServer = startWebSocketServer(plugin);
-		log.info("WebSocket server started on port {}", webSocketServer.getPort());
-
-		healthCheckFuture = executor.scheduleAtFixedRate(this::ensureServerActive, 30, 30, TimeUnit.SECONDS);
+		executor = Executors.newScheduledThreadPool(2);
+		try
+		{
+			webSocketServer = startWebSocketServer(plugin);
+			log.info("WebSocket server started on port {}", webSocketServer.getPort());
+			healthCheckFuture = executor.scheduleAtFixedRate(this::ensureServerActive, 30, 30, TimeUnit.SECONDS);
+		}
+		catch (RuntimeException e)
+		{
+			shutdownExecutor();
+			this.plugin = null;
+			throw e;
+		}
 	}
 
 	synchronized void stop()
 	{
-		if (healthCheckFuture != null)
-		{
-			healthCheckFuture.cancel(false);
-			healthCheckFuture = null;
-		}
-
+		cancelHealthCheck();
 		stopCurrentServer();
+		shutdownExecutor();
 		plugin = null;
 	}
 
@@ -125,5 +130,23 @@ class SyncWebSocketService
 	private void stopServer(SyncWebSocketServer server)
 	{
 		server.stop();
+	}
+
+	private void cancelHealthCheck()
+	{
+		if (healthCheckFuture != null)
+		{
+			healthCheckFuture.cancel(false);
+			healthCheckFuture = null;
+		}
+	}
+
+	private void shutdownExecutor()
+	{
+		if (executor != null)
+		{
+			executor.shutdown();
+			executor = null;
+		}
 	}
 }

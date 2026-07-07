@@ -126,9 +126,7 @@ public class SyncWebSocketServer
 				}
 
 				Connection connection = new Connection(socket);
-				connections.add(connection);
-
-				executor.execute(() -> handleConnection(connection));
+				handleConnection(connection);
 			}
 			catch (SocketException e)
 			{
@@ -581,6 +579,7 @@ public class SyncWebSocketServer
 			};
 			webSocket.initReaderAndWriter("Gilded Spade Sync", streams);
 			socket.setSoTimeout(0);
+			connections.add(this);
 			onOpen(webSocket, response(request));
 		}
 
