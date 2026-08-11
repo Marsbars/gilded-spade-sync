@@ -132,6 +132,8 @@ class PlayerDataService
 		Map<String, Object> payload = new HashMap<>();
 		payload.put("skills", getStats());
 		payload.put("status", getPlayerStatus());
+		payload.put("questPoints", getQuestPoints());
+		payload.put("combatLevel", getCombatLevel());
 		return payload;
 	}
 
